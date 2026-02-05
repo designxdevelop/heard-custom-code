@@ -156,11 +156,8 @@ function createWrapperForHeading(
   const wrapper = document.createElement('div');
   template.wrapperBaseClasses.forEach(cls => wrapper.classList.add(cls));
   
-  // Add level class (is-h2, is-h3, etc.) — but only for h3+
-  // H2 items don't get is-h2 by default in the Webflow structure (they just have the base wrapper class)
-  if (heading.level >= 3 && heading.level <= 6) {
-    wrapper.classList.add(`is-h${heading.level}`);
-  }
+  // Add level class (is-h2, is-h3, etc.)
+  wrapper.classList.add(`is-h${heading.level}`);
 
   // Create anchor
   const anchor = document.createElement('a');
