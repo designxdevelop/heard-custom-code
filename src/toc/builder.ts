@@ -173,6 +173,19 @@ function populateLinkElement(
 }
 
 /**
+ * Apply level-specific classes to wrapper (like is-h3, is-h4, etc.)
+ */
+function applyLevelClasses(wrapper: HTMLElement, level: number): void {
+  // Remove any existing level classes
+  wrapper.classList.remove('is-h2', 'is-h3', 'is-h4', 'is-h5', 'is-h6');
+  
+  // Add the appropriate level class
+  if (level >= 3 && level <= 6) {
+    wrapper.classList.add(`is-h${level}`);
+  }
+}
+
+/**
  * Get or create a wrapper element for a heading
  */
 function getOrCreateWrapper(
@@ -182,7 +195,10 @@ function getOrCreateWrapper(
 ): HTMLElement {
   // Try to use existing wrapper if available
   if (index < existing.wrapperElements.length) {
-    return existing.wrapperElements[index];
+    const wrapper = existing.wrapperElements[index];
+    // Apply level classes to existing wrapper
+    applyLevelClasses(wrapper, heading.level);
+    return wrapper;
   }
 
   // Clone the template wrapper to create a new one
@@ -190,6 +206,9 @@ function getOrCreateWrapper(
   
   // Remove any template attributes
   wrapper.removeAttribute('heard-toc-element');
+  
+  // Apply level-specific classes
+  applyLevelClasses(wrapper, heading.level);
   
   // Clear any existing content that might be template content
   const linkInWrapper = findLinkInWrapper(wrapper);
@@ -201,7 +220,7 @@ function getOrCreateWrapper(
 }
 
 /**
- * Build TOC by populating existing elements
+ * Build TOC by populating existing elements with proper nesting
  */
 function populateExistingElements(
   headings: HeadingEntry[],
@@ -217,10 +236,37 @@ function populateExistingElements(
     return;
   }
 
-  // Populate existing wrappers in order, creating new ones if needed
-  visibleHeadings.forEach((heading, index) => {
+  // Track which wrappers we've used and their nesting structure
+  const stack: { level: number; wrapper: HTMLElement }[] = [];
+  const usedWrappers = new Set<HTMLElement>();
+  let wrapperIndex = 0; // Track index for reusing existing wrappers
+
+  // Clear container to rebuild nested structure
+  // But first, collect all existing wrappers we might reuse
+  const availableWrappers = [...existing.wrapperElements];
+  
+  visibleHeadings.forEach((heading) => {
     // Get or create wrapper
-    let wrapper = getOrCreateWrapper(existing, heading, index);
+    let wrapper: HTMLElement;
+    
+    if (wrapperIndex < availableWrappers.length) {
+      // Reuse existing wrapper
+      wrapper = availableWrappers[wrapperIndex];
+      wrapperIndex++;
+      
+      // Remove from current parent if it's nested somewhere else
+      // We'll re-nest it properly below
+      if (wrapper.parentElement && wrapper.parentElement !== existing.container) {
+        wrapper.remove();
+      }
+    } else {
+      // Create new wrapper
+      wrapper = getOrCreateWrapper(existing, heading, wrapperIndex);
+      wrapperIndex++;
+    }
+    
+    // Apply level classes
+    applyLevelClasses(wrapper, heading.level);
     
     // Ensure wrapper is visible
     wrapper.style.display = '';
@@ -248,17 +294,31 @@ function populateExistingElements(
 
     // Populate the link with heading data
     populateLinkElement(linkEl, heading);
-    
-    // If this is a newly created wrapper, append it to container
-    // (existing wrappers are already in the DOM, so we don't move them)
-    if (index >= existing.wrapperElements.length && wrapper.parentElement !== existing.container) {
+
+    // Handle nesting: pop stack until we find the correct parent level
+    // This ensures H3s nest under H2s, H4s nest under H3s, etc.
+    while (stack.length > 0 && stack[stack.length - 1].level >= heading.level) {
+      stack.pop();
+    }
+
+    // Determine where to place this wrapper
+    if (stack.length > 0) {
+      // Nest under the parent wrapper (e.g., H3 under H2)
+      const parent = stack[stack.length - 1].wrapper;
+      parent.appendChild(wrapper);
+    } else {
+      // Top-level item (H2) - append directly to container
       existing.container.appendChild(wrapper);
     }
+
+    // Add to stack for potential children
+    stack.push({ level: heading.level, wrapper });
+    usedWrappers.add(wrapper);
   });
 
-  // Hide unused existing wrappers (but don't remove them - preserve DOM structure)
-  existing.wrapperElements.forEach((wrapper, index) => {
-    if (index >= visibleHeadings.length) {
+  // Hide unused existing wrappers
+  availableWrappers.forEach((wrapper) => {
+    if (!usedWrappers.has(wrapper)) {
       wrapper.style.display = 'none';
     }
   });
@@ -268,11 +328,7 @@ function populateExistingElements(
   if (templateLink) {
     const templateWrapper = templateLink.closest('.fs-toc_link-wrapper') || 
                             templateLink.parentElement;
-    // Only remove if it's not one of the wrappers we're using
-    const isUsed = existing.wrapperElements.some(w => 
-      w === templateWrapper || w.contains(templateLink)
-    );
-    if (!isUsed) {
+    if (!usedWrappers.has(templateWrapper as HTMLElement)) {
       templateLink.remove();
     }
   }

@@ -29,16 +29,26 @@ function parseCSSValue(value: string): number {
 
 /**
  * Get scroll spy configuration from DOM attributes
+ * Supports both heard-toc- and fs-toc- prefixes for compatibility
  */
 function getConfig(): ScrollSpyConfig {
-  const contentsEl = document.querySelector<HTMLElement>('[heard-toc-element="contents"]');
+  // Try to find contents element with either prefix
+  const contentsEl = document.querySelector<HTMLElement>('[heard-toc-element="contents"]') ||
+                      document.querySelector<HTMLElement>('[fs-toc-element="contents"]');
+  
   if (!contentsEl) {
     return { hideUrlHash: false };
   }
 
-  const offsetTop = contentsEl.getAttribute('heard-toc-offsettop') || undefined;
-  const offsetBottom = contentsEl.getAttribute('heard-toc-offsetbottom') || undefined;
-  const hideUrlHash = contentsEl.getAttribute('heard-toc-hideurlhash') === 'true';
+  // Check for both heard-toc- and fs-toc- prefixes (fs-toc takes precedence for compatibility)
+  const offsetTop = contentsEl.getAttribute('fs-toc-offsettop') ||
+                     contentsEl.getAttribute('heard-toc-offsettop') ||
+                     undefined;
+  const offsetBottom = contentsEl.getAttribute('fs-toc-offsetbottom') ||
+                       contentsEl.getAttribute('heard-toc-offsetbottom') ||
+                       undefined;
+  const hideUrlHash = contentsEl.getAttribute('fs-toc-hideurlhash') === 'true' ||
+                      contentsEl.getAttribute('heard-toc-hideurlhash') === 'true';
 
   return {
     offsetTop,
@@ -62,7 +72,60 @@ function findTOCLink(headingId: string): HTMLElement | null {
 }
 
 /**
- * Update active state of TOC links
+ * Find the parent heading for a given heading (e.g., H3's parent H2)
+ */
+function findParentHeading(
+  heading: HeadingEntry,
+  headings: HeadingEntry[]
+): HeadingEntry | null {
+  // Find the most recent heading with a lower level that comes before this one
+  let parent: HeadingEntry | null = null;
+  
+  for (let i = 0; i < headings.length; i++) {
+    if (headings[i].id === heading.id) {
+      break;
+    }
+    if (headings[i].level < heading.level && !headings[i].omitted) {
+      parent = headings[i];
+    }
+  }
+  
+  return parent;
+}
+
+/**
+ * Check if a heading is in context (its parent is also visible/active)
+ */
+function isHeadingInContext(
+  heading: HeadingEntry,
+  headings: HeadingEntry[]
+): boolean {
+  // H2s are always in context (top level)
+  if (heading.level === 2) {
+    return true;
+  }
+  
+  // For H3+, check if parent exists and is visible
+  const parent = findParentHeading(heading, headings);
+  if (!parent) {
+    return true; // No parent, so it's in context
+  }
+  
+  // Check if parent is above viewport (we've scrolled past it)
+  // This means the parent H2 is in context, so its children can be active
+  const parentRect = parent.el.getBoundingClientRect();
+  const viewportTop = window.scrollY;
+  const parentTop = window.scrollY + parentRect.top;
+  const parentBottom = window.scrollY + parentRect.bottom;
+  
+  // Parent is in context if:
+  // 1. It's above the viewport (we've scrolled past it), OR
+  // 2. It's currently visible in the viewport
+  return parentTop <= viewportTop + 300 || (parentTop >= viewportTop && parentBottom <= viewportTop + window.innerHeight);
+}
+
+/**
+ * Update active state of TOC links with nested structure support
  */
 function updateActiveLink(activeHeadingId: string | null, headings: HeadingEntry[]) {
   // Remove current class from all links
@@ -73,18 +136,21 @@ function updateActiveLink(activeHeadingId: string | null, headings: HeadingEntry
     }
   });
 
-  // Add current class to active link
+  // Add current class to active link and ensure it's in context
   if (activeHeadingId) {
-    const link = findTOCLink(activeHeadingId);
-    if (link) {
-      link.classList.add('w--current');
-      
-      // Trigger Webflow interaction if ix-trigger element exists
-      const trigger = link.closest('[heard-toc-element="ix-trigger"]')?.parentElement
-        || link.querySelector('[heard-toc-element="ix-trigger"]');
-      if (trigger) {
-        // Dispatch click event to trigger Webflow interaction
-        trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const activeHeading = headings.find(h => h.id === activeHeadingId);
+    if (activeHeading && isHeadingInContext(activeHeading, headings)) {
+      const link = findTOCLink(activeHeadingId);
+      if (link) {
+        link.classList.add('w--current');
+        
+        // Trigger Webflow interaction if ix-trigger element exists
+        const trigger = link.closest('[heard-toc-element="ix-trigger"]')?.parentElement
+          || link.querySelector('[heard-toc-element="ix-trigger"]');
+        if (trigger) {
+          // Dispatch click event to trigger Webflow interaction
+          trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
       }
     }
   }
@@ -186,17 +252,24 @@ export function initScrollSpy(headings: HeadingEntry[]): void {
         }
       } else {
         // Check if we should activate based on scroll position
-        // Find the heading closest to the top of the viewport
+        // Find the heading closest to the top of the viewport that's in context
         const viewportTop = window.scrollY + offsetTop;
         let closestHeading: HeadingEntry | null = null;
         let closestDistance = Infinity;
 
         for (const heading of headings) {
+          if (heading.omitted) continue;
+          
+          // Check if heading is in context (parent is also visible)
+          if (!isHeadingInContext(heading, headings)) {
+            continue;
+          }
+          
           const rect = heading.el.getBoundingClientRect();
           const headingTop = window.scrollY + rect.top;
           const distance = Math.abs(headingTop - viewportTop);
 
-          if (headingTop <= viewportTop && distance < closestDistance) {
+          if (headingTop <= viewportTop + 100 && distance < closestDistance) {
             closestDistance = distance;
             closestHeading = heading;
           }
@@ -228,6 +301,13 @@ export function initScrollSpy(headings: HeadingEntry[]): void {
     let activeId: string | null = null;
 
     for (const heading of headings) {
+      if (heading.omitted) continue;
+      
+      // Only consider headings that are in context
+      if (!isHeadingInContext(heading, headings)) {
+        continue;
+      }
+      
       const rect = heading.el.getBoundingClientRect();
       const headingTop = window.scrollY + rect.top;
       

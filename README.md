@@ -22,7 +22,12 @@ A Webflow-compatible table of contents generator that supports collecting headin
 - `heard-toc-element="link"` on a link element that serves as the template for TOC entries
 - `heard-toc-element="table"` (optional) on the container where the TOC should appear
 
-See the [Finsweet TOC documentation](https://finsweet.com/attributes/table-of-contents) for the full attribute API - this implementation uses `heard-toc-` prefix instead of `fs-toc-` but follows the same conventions.
+**Scroll Offset Attributes:**
+- `heard-toc-offsettop` or `fs-toc-offsettop` - Top offset for scroll spy (e.g., `"80px"`, `"5rem"`)
+- `heard-toc-offsetbottom` or `fs-toc-offsetbottom` - Bottom offset for scroll spy
+- `heard-toc-hideurlhash` or `fs-toc-hideurlhash` - Set to `"true"` to prevent URL hash updates
+
+See the [Finsweet TOC documentation](https://finsweet.com/attributes/table-of-contents) for the full attribute API - this implementation uses `heard-toc-` prefix but also supports `fs-toc-` prefix for scroll offset attributes for compatibility.
 
 ---
 
