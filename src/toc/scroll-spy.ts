@@ -30,25 +30,59 @@ function parseCSSValue(value: string): number {
 /**
  * Get scroll spy configuration from DOM attributes
  * Supports both heard-toc- and fs-toc- prefixes for compatibility
+ * Checks table container first, then all contents elements
  */
 function getConfig(): ScrollSpyConfig {
-  // Try to find contents element with either prefix
-  const contentsEl = document.querySelector<HTMLElement>('[heard-toc-element="contents"]') ||
-                      document.querySelector<HTMLElement>('[fs-toc-element="contents"]');
+  // First, try to get config from table container (most convenient)
+  const tableEl = document.querySelector<HTMLElement>('[heard-toc-element="table"]') ||
+                   document.querySelector<HTMLElement>('[fs-toc-element="table"]') ||
+                   document.querySelector<HTMLElement>('.fs-toc_link-content');
   
-  if (!contentsEl) {
-    return { hideUrlHash: false };
+  let offsetTop: string | undefined;
+  let offsetBottom: string | undefined;
+  let hideUrlHash = false;
+
+  // Check table container first
+  if (tableEl) {
+    offsetTop = tableEl.getAttribute('fs-toc-offsettop') ||
+                tableEl.getAttribute('heard-toc-offsettop') ||
+                undefined;
+    offsetBottom = tableEl.getAttribute('fs-toc-offsetbottom') ||
+                   tableEl.getAttribute('heard-toc-offsetbottom') ||
+                   undefined;
+    hideUrlHash = tableEl.getAttribute('fs-toc-hideurlhash') === 'true' ||
+                  tableEl.getAttribute('heard-toc-hideurlhash') === 'true';
   }
 
-  // Check for both heard-toc- and fs-toc- prefixes (fs-toc takes precedence for compatibility)
-  const offsetTop = contentsEl.getAttribute('fs-toc-offsettop') ||
-                     contentsEl.getAttribute('heard-toc-offsettop') ||
-                     undefined;
-  const offsetBottom = contentsEl.getAttribute('fs-toc-offsetbottom') ||
-                       contentsEl.getAttribute('heard-toc-offsetbottom') ||
-                       undefined;
-  const hideUrlHash = contentsEl.getAttribute('fs-toc-hideurlhash') === 'true' ||
-                      contentsEl.getAttribute('heard-toc-hideurlhash') === 'true';
+  // If not found on table, check all contents elements
+  if (!offsetTop && !offsetBottom) {
+    const contentsElements = document.querySelectorAll<HTMLElement>(
+      '[heard-toc-element="contents"], [fs-toc-element="contents"]'
+    );
+
+    for (const contentsEl of contentsElements) {
+      // Check for both heard-toc- and fs-toc- prefixes (fs-toc takes precedence)
+      const elOffsetTop = contentsEl.getAttribute('fs-toc-offsettop') ||
+                          contentsEl.getAttribute('heard-toc-offsettop');
+      const elOffsetBottom = contentsEl.getAttribute('fs-toc-offsetbottom') ||
+                             contentsEl.getAttribute('heard-toc-offsetbottom');
+      const elHideUrlHash = contentsEl.getAttribute('fs-toc-hideurlhash') === 'true' ||
+                           contentsEl.getAttribute('heard-toc-hideurlhash') === 'true';
+
+      // Use first element that has offset attributes
+      if (elOffsetTop || elOffsetBottom) {
+        offsetTop = elOffsetTop || undefined;
+        offsetBottom = elOffsetBottom || undefined;
+        hideUrlHash = elHideUrlHash;
+        break; // Use first one found
+      }
+      
+      // If no offset but has hideUrlHash, still set it
+      if (elHideUrlHash) {
+        hideUrlHash = true;
+      }
+    }
+  }
 
   return {
     offsetTop,
