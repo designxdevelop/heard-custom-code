@@ -1,0 +1,22 @@
+{
+  "name": "heard-custom-code",
+  "version": "1.0.0",
+  "description": "Custom functionality components and scripts for joinheard.com",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch",
+    "build:toc": "node build.js toc"
+  },
+  "keywords": [
+    "webflow",
+    "table-of-contents",
+    "custom-code"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.19.12",
+    "typescript": "^5.3.3"
+  }
+}

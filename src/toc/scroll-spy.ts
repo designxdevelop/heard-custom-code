@@ -1,0 +1,249 @@
+/**
+ * IntersectionObserver-based active state tracking and smooth scrolling
+ */
+
+import type { HeadingEntry } from './headings';
+
+interface ScrollSpyConfig {
+  offsetTop?: string;
+  offsetBottom?: string;
+  hideUrlHash: boolean;
+}
+
+/**
+ * Parse CSS value to pixels (approximate)
+ */
+function parseCSSValue(value: string): number {
+  const num = parseFloat(value);
+  if (value.includes('rem')) {
+    return num * 16; // 1rem = 16px (approximate)
+  } else if (value.includes('em')) {
+    return num * 16; // Approximate
+  } else if (value.includes('px')) {
+    return num;
+  } else if (value.includes('vh')) {
+    return (num / 100) * window.innerHeight;
+  }
+  return num; // Default to pixels
+}
+
+/**
+ * Get scroll spy configuration from DOM attributes
+ */
+function getConfig(): ScrollSpyConfig {
+  const contentsEl = document.querySelector<HTMLElement>('[heard-toc-element="contents"]');
+  if (!contentsEl) {
+    return { hideUrlHash: false };
+  }
+
+  const offsetTop = contentsEl.getAttribute('heard-toc-offsettop') || undefined;
+  const offsetBottom = contentsEl.getAttribute('heard-toc-offsetbottom') || undefined;
+  const hideUrlHash = contentsEl.getAttribute('heard-toc-hideurlhash') === 'true';
+
+  return {
+    offsetTop,
+    offsetBottom,
+    hideUrlHash,
+  };
+}
+
+/**
+ * Find the TOC link element corresponding to a heading ID
+ */
+function findTOCLink(headingId: string): HTMLElement | null {
+  // Look for anchor with href matching the heading ID
+  const link = document.querySelector<HTMLAnchorElement>(`a[href="#${headingId}"]`);
+  if (link) {
+    return link;
+  }
+
+  // Fallback: look for element with data-toc-link attribute
+  return document.querySelector<HTMLElement>(`[data-toc-link="${headingId}"]`);
+}
+
+/**
+ * Update active state of TOC links
+ */
+function updateActiveLink(activeHeadingId: string | null, headings: HeadingEntry[]) {
+  // Remove current class from all links
+  headings.forEach((heading) => {
+    const link = findTOCLink(heading.id);
+    if (link) {
+      link.classList.remove('w--current');
+    }
+  });
+
+  // Add current class to active link
+  if (activeHeadingId) {
+    const link = findTOCLink(activeHeadingId);
+    if (link) {
+      link.classList.add('w--current');
+      
+      // Trigger Webflow interaction if ix-trigger element exists
+      const trigger = link.closest('[heard-toc-element="ix-trigger"]')?.parentElement
+        || link.querySelector('[heard-toc-element="ix-trigger"]');
+      if (trigger) {
+        // Dispatch click event to trigger Webflow interaction
+        trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      }
+    }
+  }
+}
+
+/**
+ * Smooth scroll to heading with offset
+ */
+function scrollToHeading(
+  headingId: string,
+  config: ScrollSpyConfig
+): void {
+  const heading = document.getElementById(headingId);
+  if (!heading) return;
+
+  const offsetTop = config.offsetTop ? parseCSSValue(config.offsetTop) : 0;
+  const offsetBottom = config.offsetBottom ? parseCSSValue(config.offsetBottom) : 0;
+
+  const headingRect = heading.getBoundingClientRect();
+  const scrollPosition = window.scrollY + headingRect.top - offsetTop;
+
+  window.scrollTo({
+    top: Math.max(0, scrollPosition),
+    behavior: 'smooth',
+  });
+
+  // Update URL hash if not hidden
+  if (!config.hideUrlHash) {
+    // Use replaceState to avoid adding to history
+    const url = new URL(window.location.href);
+    url.hash = headingId;
+    window.history.replaceState(null, '', url.toString());
+  }
+}
+
+/**
+ * Handle TOC link clicks
+ */
+function setupLinkClickHandlers(headings: HeadingEntry[], config: ScrollSpyConfig): void {
+  headings.forEach((heading) => {
+    const link = findTOCLink(heading.id);
+    if (!link) return;
+
+    link.addEventListener('click', (e) => {
+      // Only handle if it's an anchor with hash or data attribute
+      const isAnchor = link.tagName === 'A';
+      const href = isAnchor ? (link as HTMLAnchorElement).href : null;
+      
+      if (href && href.includes('#')) {
+        // Let default anchor behavior handle it, but we'll still scroll
+        e.preventDefault();
+      }
+
+      scrollToHeading(heading.id, config);
+    });
+  });
+}
+
+/**
+ * Initialize scroll spy with IntersectionObserver
+ */
+export function initScrollSpy(headings: HeadingEntry[]): void {
+  if (headings.length === 0) return;
+
+  const config = getConfig();
+  
+  // Calculate rootMargin for IntersectionObserver
+  const offsetTop = config.offsetTop ? parseCSSValue(config.offsetTop) : 0;
+  const offsetBottom = config.offsetBottom ? parseCSSValue(config.offsetBottom) : 0;
+  
+  const rootMarginTop = offsetTop > 0 ? `-${offsetTop}px` : '0px';
+  const rootMarginBottom = offsetBottom > 0 ? `-${offsetBottom}px` : '0px';
+  const rootMargin = `${rootMarginTop} 0px ${rootMarginBottom} 0px`;
+
+  // Track which heading is currently active
+  let activeHeadingId: string | null = null;
+
+  // Create IntersectionObserver
+  const observer = new IntersectionObserver(
+    (entries: IntersectionObserverEntry[]) => {
+      // Find the entry with the highest intersection ratio that's intersecting
+      let bestEntry: IntersectionObserverEntry | null = null;
+      let bestRatio = 0;
+
+      for (const entry of entries) {
+        if (entry.isIntersecting && entry.intersectionRatio > bestRatio) {
+          bestRatio = entry.intersectionRatio;
+          bestEntry = entry;
+        }
+      }
+
+      // If we have a best entry, update active state
+      if (bestEntry !== null) {
+        const target = bestEntry.target as HTMLElement;
+        const headingId = target.id;
+        if (headingId && headingId !== activeHeadingId) {
+          activeHeadingId = headingId;
+          updateActiveLink(activeHeadingId, headings);
+        }
+      } else {
+        // Check if we should activate based on scroll position
+        // Find the heading closest to the top of the viewport
+        const viewportTop = window.scrollY + offsetTop;
+        let closestHeading: HeadingEntry | null = null;
+        let closestDistance = Infinity;
+
+        for (const heading of headings) {
+          const rect = heading.el.getBoundingClientRect();
+          const headingTop = window.scrollY + rect.top;
+          const distance = Math.abs(headingTop - viewportTop);
+
+          if (headingTop <= viewportTop && distance < closestDistance) {
+            closestDistance = distance;
+            closestHeading = heading;
+          }
+        }
+
+        if (closestHeading !== null && closestHeading.id !== activeHeadingId) {
+          activeHeadingId = closestHeading.id;
+          updateActiveLink(activeHeadingId, headings);
+        }
+      }
+    },
+    {
+      rootMargin,
+      threshold: [0, 0.1, 0.5, 1.0],
+    }
+  );
+
+  // Observe all headings
+  headings.forEach((heading) => {
+    observer.observe(heading.el);
+  });
+
+  // Setup click handlers for TOC links
+  setupLinkClickHandlers(headings, config);
+
+  // Initial active state check
+  const checkInitialActive = () => {
+    const viewportTop = window.scrollY + offsetTop;
+    let activeId: string | null = null;
+
+    for (const heading of headings) {
+      const rect = heading.el.getBoundingClientRect();
+      const headingTop = window.scrollY + rect.top;
+      
+      if (headingTop <= viewportTop + 100) {
+        activeId = heading.id;
+      } else {
+        break;
+      }
+    }
+
+    if (activeId) {
+      updateActiveLink(activeId, headings);
+    }
+  };
+
+  // Check on load and scroll
+  checkInitialActive();
+  window.addEventListener('scroll', checkInitialActive, { passive: true });
+}

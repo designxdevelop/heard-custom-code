@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Heard TOC - Multi Rich Text Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      grid-template-columns: 300px 1fr;
+      gap: 3rem;
+    }
+    
+    .toc-container {
+      position: sticky;
+      top: 2rem;
+      align-self: start;
+      background: #f5f5f5;
+      padding: 1.5rem;
+      border-radius: 8px;
+    }
+    
+    .toc-container h3 {
+      margin-bottom: 1rem;
+      font-size: 1.2rem;
+    }
+    
+    .toc-container a {
+      display: block;
+      padding: 0.5rem 0;
+      color: #666;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+    
+    .toc-container a:hover {
+      color: #000;
+    }
+    
+    .toc-container a.w--current {
+      color: #0066cc;
+      font-weight: 600;
+    }
+    
+    .toc-container .h3-wrapper {
+      margin-left: 1rem;
+    }
+    
+    .toc-container .h4-wrapper {
+      margin-left: 2rem;
+    }
+    
+    .content {
+      max-width: 800px;
+    }
+    
+    .rich-text {
+      margin-bottom: 3rem;
+      padding: 2rem;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+    }
+    
+    .rich-text h2 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 2px solid #e0e0e0;
+    }
+    
+    .rich-text h3 {
+      font-size: 1.5rem;
+      margin-top: 2rem;
+      margin-bottom: 1rem;
+    }
+    
+    .rich-text h4 {
+      font-size: 1.25rem;
+      margin-top: 1.5rem;
+      margin-bottom: 0.75rem;
+    }
+    
+    .rich-text p {
+      margin-bottom: 1rem;
+      color: #555;
+    }
+    
+    .spacer {
+      height: 50vh;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Table of Contents -->
+    <div class="toc-container">
+      <h3>Table of Contents</h3>
+      <div heard-toc-element="table">
+        <!-- H2 wrapper -->
+        <div class="h2-wrapper">
+          <!-- H3 wrapper (nested) -->
+          <div class="h3-wrapper">
+            <!-- H4 wrapper (nested) -->
+            <div class="h4-wrapper">
+              <!-- Link template -->
+              <a href="#" heard-toc-element="link">Link Text</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Content Area -->
+    <div class="content">
+      <!-- First Rich Text Block -->
+      <div class="rich-text" heard-toc-element="contents">
+        <h2>Introduction</h2>
+        <p>This is the first rich text block. It contains headings that should appear in the table of contents.</p>
+        
+        <h3>Getting Started</h3>
+        <p>Here's some content under the first H3 heading.</p>
+        
+        <h4>Prerequisites</h4>
+        <p>Some prerequisites information.</p>
+        
+        <h4>Installation</h4>
+        <p>Installation steps go here.</p>
+        
+        <h3>Basic Concepts</h3>
+        <p>Basic concepts explained.</p>
+      </div>
+      
+      <!-- Second Rich Text Block -->
+      <div class="rich-text" heard-toc-element="contents">
+        <h2>Advanced Topics</h2>
+        <p>This is the second rich text block. Its headings should also appear in the same table of contents.</p>
+        
+        <h3>Advanced Configuration</h3>
+        <p>Advanced configuration details.</p>
+        
+        <h4>Custom Settings</h4>
+        <p>Custom settings information.</p>
+        
+        <h3>Best Practices</h3>
+        <p>Best practices section.</p>
+        
+        <h4>Performance Tips</h4>
+        <p>Performance optimization tips.</p>
+        
+        <h4>Security Considerations</h4>
+        <p>Security best practices.</p>
+      </div>
+      
+      <!-- Third Rich Text Block -->
+      <div class="rich-text" heard-toc-element="contents">
+        <h2>Conclusion</h2>
+        <p>This is the third rich text block. All headings from all three blocks should appear in a single unified table of contents.</p>
+        
+        <h3>Summary</h3>
+        <p>Summary of key points.</p>
+        
+        <h3>Next Steps</h3>
+        <p>What to do next.</p>
+      </div>
+      
+      <div class="spacer"></div>
+    </div>
+  </div>
+  
+  <script src="dist/heard-toc.js"></script>
+</body>
+</html>
