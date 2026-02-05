@@ -30,6 +30,9 @@ function parseCSSValue(value: string): number {
 /**
  * Detect the height of fixed/sticky elements at the top of the page (e.g. navbar).
  * Returns the pixel height to use as scroll offset.
+ * 
+ * This is called lazily (not at init) so that Webflow/other JS frameworks have
+ * time to apply position:fixed to nav elements.
  */
 function detectStickyNavHeight(): number {
   // Check scroll-padding-top on html or body first
@@ -45,27 +48,65 @@ function detectStickyNavHeight(): number {
     if (parsed > 0) return parsed;
   }
 
-  // Look for fixed/sticky elements at the top of the page
-  // Common selectors for navigation bars
-  const candidates = document.querySelectorAll<HTMLElement>(
-    'nav, header, [class*="nav"], [class*="header"], [data-role="navbar"]'
-  );
-
+  // Look for fixed/sticky elements at the top of the page.
+  // We check ALL elements but limit to top-level structural ones to avoid
+  // matching child elements inside navs. querySelectorAll with tag names
+  // and direct structural selectors.
   let maxHeight = 0;
-  for (const el of candidates) {
+
+  // Strategy 1: Check <nav> and <header> tags directly
+  const structuralEls = document.querySelectorAll<HTMLElement>('nav, header');
+  for (const el of structuralEls) {
     const style = getComputedStyle(el);
-    const position = style.position;
-    
-    if (position === 'fixed' || position === 'sticky') {
+    if (style.position === 'fixed' || style.position === 'sticky') {
       const rect = el.getBoundingClientRect();
-      // Only consider elements near the top of the viewport
       if (rect.top < 10 && rect.height > 0) {
         maxHeight = Math.max(maxHeight, rect.bottom);
       }
     }
   }
 
+  // Strategy 2: If nothing found, check body's direct children for fixed/sticky
+  if (maxHeight === 0) {
+    for (const el of document.body.children) {
+      if (!(el instanceof HTMLElement)) continue;
+      const style = getComputedStyle(el);
+      if (style.position === 'fixed' || style.position === 'sticky') {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < 10 && rect.height > 0) {
+          maxHeight = Math.max(maxHeight, rect.bottom);
+        }
+      }
+    }
+  }
+
   return maxHeight;
+}
+
+/** Cached resolved offset top in pixels. -1 means not yet computed. */
+let _cachedOffsetTopPx = -1;
+
+/**
+ * Get the effective top offset in pixels, resolving it lazily.
+ * This defers sticky nav detection until first use so that Webflow's JS
+ * has time to apply position:fixed to nav elements.
+ */
+function getEffectiveOffsetTop(config: ScrollSpyConfig): number {
+  if (_cachedOffsetTopPx >= 0) return _cachedOffsetTopPx;
+
+  if (config.offsetTop) {
+    _cachedOffsetTopPx = parseCSSValue(config.offsetTop);
+  } else {
+    const navHeight = detectStickyNavHeight();
+    if (navHeight > 0) {
+      _cachedOffsetTopPx = navHeight + 20; // 20px breathing room
+      console.log(`[Heard TOC] Auto-detected sticky nav offset: ${_cachedOffsetTopPx}px`);
+    } else {
+      _cachedOffsetTopPx = 0;
+    }
+  }
+
+  return _cachedOffsetTopPx;
 }
 
 /**
@@ -123,16 +164,6 @@ function getConfig(): ScrollSpyConfig {
       if (elHideUrlHash) {
         hideUrlHash = true;
       }
-    }
-  }
-
-  // Auto-detect sticky nav height if no explicit offset is configured
-  if (!offsetTop) {
-    const stickyHeight = detectStickyNavHeight();
-    if (stickyHeight > 0) {
-      // Add a small buffer (20px) for visual breathing room
-      offsetTop = `${stickyHeight + 20}px`;
-      console.log(`[Heard TOC] Auto-detected sticky nav offset: ${offsetTop}`);
     }
   }
 
@@ -252,8 +283,7 @@ function scrollToHeading(
   const heading = document.getElementById(headingId);
   if (!heading) return;
 
-  const offsetTop = config.offsetTop ? parseCSSValue(config.offsetTop) : 0;
-  const offsetBottom = config.offsetBottom ? parseCSSValue(config.offsetBottom) : 0;
+  const offsetTop = getEffectiveOffsetTop(config);
 
   const headingRect = heading.getBoundingClientRect();
   const scrollPosition = window.scrollY + headingRect.top - offsetTop;
@@ -303,9 +333,28 @@ export function initScrollSpy(headings: HeadingEntry[]): void {
 
   const config = getConfig();
   
-  // Calculate rootMargin for IntersectionObserver
-  const offsetTop = config.offsetTop ? parseCSSValue(config.offsetTop) : 0;
+  // Resolve offsets lazily — this defers nav detection until first scroll/click
+  // For IntersectionObserver rootMargin we need a value at setup time,
+  // so we resolve it now (after DOMContentLoaded, Webflow JS should have run).
+  // We use requestAnimationFrame to allow one more paint cycle.
   const offsetBottom = config.offsetBottom ? parseCSSValue(config.offsetBottom) : 0;
+
+  // Setup click handlers immediately (they resolve offset lazily on click)
+  setupLinkClickHandlers(headings, config);
+
+  // Defer the IntersectionObserver setup by one rAF so Webflow JS can
+  // finish applying position:fixed to nav elements
+  requestAnimationFrame(() => {
+    _setupScrollSpy(headings, config, offsetBottom);
+  });
+}
+
+function _setupScrollSpy(
+  headings: HeadingEntry[],
+  config: ScrollSpyConfig,
+  offsetBottom: number,
+): void {
+  const offsetTop = getEffectiveOffsetTop(config);
   
   const rootMarginTop = offsetTop > 0 ? `-${offsetTop}px` : '0px';
   const rootMarginBottom = offsetBottom > 0 ? `-${offsetBottom}px` : '0px';
@@ -377,9 +426,6 @@ export function initScrollSpy(headings: HeadingEntry[]): void {
   headings.forEach((heading) => {
     observer.observe(heading.el);
   });
-
-  // Setup click handlers for TOC links
-  setupLinkClickHandlers(headings, config);
 
   // Initial active state check
   const checkInitialActive = () => {
