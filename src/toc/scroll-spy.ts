@@ -28,9 +28,51 @@ function parseCSSValue(value: string): number {
 }
 
 /**
+ * Detect the height of fixed/sticky elements at the top of the page (e.g. navbar).
+ * Returns the pixel height to use as scroll offset.
+ */
+function detectStickyNavHeight(): number {
+  // Check scroll-padding-top on html or body first
+  const htmlScrollPad = getComputedStyle(document.documentElement).scrollPaddingTop;
+  if (htmlScrollPad && htmlScrollPad !== 'auto') {
+    const parsed = parseCSSValue(htmlScrollPad);
+    if (parsed > 0) return parsed;
+  }
+  
+  const bodyScrollPad = getComputedStyle(document.body).scrollPaddingTop;
+  if (bodyScrollPad && bodyScrollPad !== 'auto') {
+    const parsed = parseCSSValue(bodyScrollPad);
+    if (parsed > 0) return parsed;
+  }
+
+  // Look for fixed/sticky elements at the top of the page
+  // Common selectors for navigation bars
+  const candidates = document.querySelectorAll<HTMLElement>(
+    'nav, header, [class*="nav"], [class*="header"], [data-role="navbar"]'
+  );
+
+  let maxHeight = 0;
+  for (const el of candidates) {
+    const style = getComputedStyle(el);
+    const position = style.position;
+    
+    if (position === 'fixed' || position === 'sticky') {
+      const rect = el.getBoundingClientRect();
+      // Only consider elements near the top of the viewport
+      if (rect.top < 10 && rect.height > 0) {
+        maxHeight = Math.max(maxHeight, rect.bottom);
+      }
+    }
+  }
+
+  return maxHeight;
+}
+
+/**
  * Get scroll spy configuration from DOM attributes
  * Supports both heard-toc- and fs-toc- prefixes for compatibility
- * Checks table container first, then all contents elements
+ * Checks table container first, then all contents elements.
+ * If no explicit offset is set, auto-detects sticky nav height.
  */
 function getConfig(): ScrollSpyConfig {
   // First, try to get config from table container (most convenient)
@@ -81,6 +123,16 @@ function getConfig(): ScrollSpyConfig {
       if (elHideUrlHash) {
         hideUrlHash = true;
       }
+    }
+  }
+
+  // Auto-detect sticky nav height if no explicit offset is configured
+  if (!offsetTop) {
+    const stickyHeight = detectStickyNavHeight();
+    if (stickyHeight > 0) {
+      // Add a small buffer (20px) for visual breathing room
+      offsetTop = `${stickyHeight + 20}px`;
+      console.log(`[Heard TOC] Auto-detected sticky nav offset: ${offsetTop}`);
     }
   }
 

@@ -6,7 +6,9 @@
   "scripts": {
     "build": "node build.js",
     "dev": "node build.js --watch",
-    "build:toc": "node build.js toc"
+    "build:toc": "node build.js toc",
+    "build:faq-schema": "node build.js faq-schema",
+    "generate-faq-schema": "node scripts/generate-faq-schema.js"
   },
   "keywords": [
     "webflow",
@@ -17,6 +19,7 @@
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.19.12",
+    "jsdom": "^24.0.0",
     "typescript": "^5.3.3"
   }
 }
