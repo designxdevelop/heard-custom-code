@@ -1,187 +1,285 @@
 /**
- * TOC DOM generation from link template
+ * TOC DOM generation using existing styled elements
  */
 
 import type { HeadingEntry } from './headings';
 
-interface TemplateStructure {
-  linkEl: HTMLElement;
-  wrappers: Map<number, HTMLElement>; // level -> wrapper element
-  maxLevel: number;
+interface ExistingElements {
+  container: HTMLElement;
+  wrapperElements: HTMLElement[]; // Existing wrapper elements (fs-toc_link-wrapper or similar)
+  linkTemplate: HTMLElement; // Template link element to clone if needed
+  wrapperTemplate: HTMLElement; // Template wrapper element to clone if needed
 }
 
 /**
- * Find and parse the link template structure
- * Webflow structure: H2 wrapper > H3 wrapper > H4 wrapper > ... > link element
+ * Find existing wrapper elements in the DOM
+ * Looks for elements with classes like fs-toc_link-wrapper or similar patterns
  */
-function findTemplateStructure(): TemplateStructure | null {
-  const linkEl = document.querySelector<HTMLElement>('[heard-toc-element="link"]');
-  if (!linkEl) {
-    console.warn('[Heard TOC] No element with heard-toc-element="link" found');
+function findExistingWrappers(container: HTMLElement): HTMLElement[] {
+  // Try multiple selector patterns to find existing wrappers
+  const selectors = [
+    '.fs-toc_link-wrapper',
+    '[class*="toc_link-wrapper"]',
+    '[class*="toc-wrapper"]',
+    '.heard-toc-wrapper',
+  ];
+
+  for (const selector of selectors) {
+    const wrappers = Array.from(container.querySelectorAll<HTMLElement>(selector));
+    if (wrappers.length > 0) {
+      return wrappers;
+    }
+  }
+
+  // If no wrappers found with classes, look for direct children that might be wrappers
+  // This handles cases where wrappers don't have specific classes
+  return Array.from(container.children).filter(
+    (el): el is HTMLElement => el instanceof HTMLElement
+  );
+}
+
+/**
+ * Find existing link elements within wrappers
+ */
+function findLinkInWrapper(wrapper: HTMLElement): HTMLElement | null {
+  // Try multiple patterns to find the link element
+  const selectors = [
+    '.fs-toc_link',
+    'a[class*="toc_link"]',
+    'a',
+    '[heard-toc-element="link"]',
+  ];
+
+  for (const selector of selectors) {
+    const link = wrapper.querySelector<HTMLElement>(selector);
+    if (link) {
+      return link;
+    }
+  }
+
+  // If no link found, the wrapper itself might be the link
+  if (wrapper.tagName === 'A' || wrapper.hasAttribute('href')) {
+    return wrapper;
+  }
+
+  return null;
+}
+
+/**
+ * Find heading element within link (like fs-toc_link-h2, fs-toc_link-h3)
+ */
+function findHeadingInLink(linkEl: HTMLElement, level: number): HTMLElement | null {
+  // Look for heading elements with level-specific classes
+  const headingSelectors = [
+    `.fs-toc_link-h${level}`,
+    `h${level}[class*="toc_link"]`,
+    `h${level}`,
+  ];
+
+  for (const selector of headingSelectors) {
+    const heading = linkEl.querySelector<HTMLElement>(selector);
+    if (heading) {
+      return heading;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Discover existing DOM structure
+ */
+function findExistingElements(): ExistingElements | null {
+  // Find the container
+  const container = document.querySelector<HTMLElement>('[heard-toc-element="table"]') ||
+                    document.querySelector<HTMLElement>('.fs-toc_link-content') ||
+                    document.querySelector<HTMLElement>('[class*="toc_link-content"]');
+  
+  if (!container) {
+    console.warn('[Heard TOC] No TOC container found. Add heard-toc-element="table" or .fs-toc_link-content');
     return null;
   }
 
-  const wrappers = new Map<number, HTMLElement>();
-  
-  // Walk up from the link element to find nested wrappers
-  // Each parent div represents a heading level wrapper
-  // Structure: outermost div (H2) > inner div (H3) > innermost div (H4) > link
-  let currentEl: HTMLElement | null = linkEl.parentElement;
-  let level = 2; // Start from H2 (H1 is typically page title, not in TOC)
+  // Find existing wrapper elements
+  const wrapperElements = findExistingWrappers(container);
 
-  while (currentEl && currentEl !== document.body && level <= 6) {
-    // Clone the wrapper for this level
-    const wrapperClone = currentEl.cloneNode(true) as HTMLElement;
-    // Remove the original link template from the clone
-    const linkInClone = wrapperClone.querySelector('[heard-toc-element="link"]');
-    if (linkInClone) {
-      linkInClone.remove();
-    }
-    wrappers.set(level, wrapperClone);
-    
-    currentEl = currentEl.parentElement;
-    level++;
+  // Find template elements for cloning if needed
+  const linkTemplate = document.querySelector<HTMLElement>('[heard-toc-element="link"]') ||
+                       container.querySelector<HTMLElement>('.fs-toc_link') ||
+                       container.querySelector<HTMLElement>('a');
+
+  const wrapperTemplate = wrapperElements.length > 0 
+    ? wrapperElements[0] 
+    : container.querySelector<HTMLElement>('.fs-toc_link-wrapper') ||
+      container.firstElementChild as HTMLElement;
+
+  if (!linkTemplate || !wrapperTemplate) {
+    console.warn('[Heard TOC] Could not find template elements');
+    return null;
   }
 
-  const maxLevel = wrappers.size > 0 ? Math.max(...Array.from(wrappers.keys())) : 2;
-
   return {
-    linkEl,
-    wrappers,
-    maxLevel: Math.max(maxLevel, 2),
+    container,
+    wrapperElements,
+    linkTemplate,
+    wrapperTemplate,
   };
 }
 
 /**
- * Clone the link template
+ * Populate an existing link element with heading data
  */
-function cloneLinkTemplate(template: TemplateStructure): HTMLElement {
-  const clonedLink = template.linkEl.cloneNode(true) as HTMLElement;
-  // Remove the heard-toc-element attribute from cloned links
-  clonedLink.removeAttribute('heard-toc-element');
-  return clonedLink;
+function populateLinkElement(
+  linkEl: HTMLElement,
+  heading: HeadingEntry
+): void {
+  // Set href on anchor element
+  if (linkEl.tagName === 'A') {
+    (linkEl as HTMLAnchorElement).href = `#${heading.id}`;
+  } else {
+    // Find nested anchor or set data attribute
+    const anchor = linkEl.querySelector<HTMLAnchorElement>('a');
+    if (anchor) {
+      anchor.href = `#${heading.id}`;
+    } else {
+      linkEl.setAttribute('data-toc-link', heading.id);
+      // Make it clickable
+      linkEl.style.cursor = 'pointer';
+      linkEl.addEventListener('click', () => {
+        const target = document.getElementById(heading.id);
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+      });
+    }
+  }
+
+  // Set text content - look for heading element first (like fs-toc_link-h2)
+  const headingEl = findHeadingInLink(linkEl, heading.level);
+  if (headingEl) {
+    headingEl.textContent = heading.text;
+  } else if (linkEl.tagName === 'A') {
+    linkEl.textContent = heading.text;
+  } else {
+    // Find nested anchor or text element
+    const anchor = linkEl.querySelector('a');
+    if (anchor) {
+      anchor.textContent = heading.text;
+    } else {
+      // Update the element's text content directly
+      linkEl.textContent = heading.text;
+    }
+  }
 }
 
 /**
- * Create a wrapper for a specific heading level
+ * Get or create a wrapper element for a heading
  */
-function createLevelWrapper(
-  template: TemplateStructure,
-  level: number,
-  linkEl: HTMLElement
+function getOrCreateWrapper(
+  existing: ExistingElements,
+  heading: HeadingEntry,
+  index: number
 ): HTMLElement {
-  // Find the wrapper template for this level
-  let wrapperTemplate = template.wrappers.get(level);
-  
-  if (!wrapperTemplate) {
-    // Use the closest available wrapper (prefer higher level if exact match not found)
-    const availableLevels = Array.from(template.wrappers.keys()).sort((a, b) => a - b);
-    const closestLevel = availableLevels.find(l => l >= level) || availableLevels[availableLevels.length - 1];
-    wrapperTemplate = template.wrappers.get(closestLevel)!;
+  // Try to use existing wrapper if available
+  if (index < existing.wrapperElements.length) {
+    return existing.wrapperElements[index];
   }
 
-  // Clone the wrapper template
-  const wrapper = wrapperTemplate.cloneNode(true) as HTMLElement;
+  // Clone the template wrapper to create a new one
+  const wrapper = existing.wrapperTemplate.cloneNode(true) as HTMLElement;
   
-  // Insert our link into the wrapper
-  // If wrapper has nested structure, find the innermost container
-  let container = wrapper;
-  while (container.children.length > 0) {
-    const firstChild = container.children[0];
-    if (firstChild.tagName === 'DIV' || firstChild.tagName === 'SPAN') {
-      container = firstChild as HTMLElement;
-    } else {
-      break;
-    }
+  // Remove any template attributes
+  wrapper.removeAttribute('heard-toc-element');
+  
+  // Clear any existing content that might be template content
+  const linkInWrapper = findLinkInWrapper(wrapper);
+  if (linkInWrapper && linkInWrapper.hasAttribute('heard-toc-element')) {
+    // Keep the structure but we'll populate it
   }
-  container.appendChild(linkEl);
-  
+
   return wrapper;
 }
 
 /**
- * Build nested TOC structure from headings
+ * Build TOC by populating existing elements
  */
-function buildNestedStructure(
+function populateExistingElements(
   headings: HeadingEntry[],
-  template: TemplateStructure
-): HTMLElement[] {
-  const items: HTMLElement[] = [];
-  const stack: { level: number; wrapper: HTMLElement }[] = [];
-
-  headings.forEach((heading) => {
-    if (heading.omitted) return;
-
-    // Clone the link template
-    const linkEl = cloneLinkTemplate(template);
-    
-    // Set link href and text
-    if (linkEl.tagName === 'A') {
-      (linkEl as HTMLAnchorElement).href = `#${heading.id}`;
-    } else {
-      // If it's not an anchor, make it clickable or find nested anchor
-      const anchor = linkEl.querySelector('a') || linkEl;
-      if (anchor.tagName === 'A') {
-        (anchor as HTMLAnchorElement).href = `#${heading.id}`;
-      } else {
-        // Create a data attribute for JavaScript click handling
-        linkEl.setAttribute('data-toc-link', heading.id);
-      }
-    }
-
-    // Set link text
-    // The link element itself or a nested text element should contain the text
-    if (linkEl.tagName === 'A') {
-      linkEl.textContent = heading.text;
-    } else {
-      // Find nested anchor or text element
-      const anchor = linkEl.querySelector('a');
-      if (anchor) {
-        anchor.textContent = heading.text;
-      } else {
-        // Update the element's text content directly
-        linkEl.textContent = heading.text;
-      }
-    }
-
-    // Create wrapper for this heading level
-    let wrapper = createLevelWrapper(template, heading.level, linkEl);
-
-    // Handle nesting: pop stack until we find the correct parent level
-    while (stack.length > 0 && stack[stack.length - 1].level >= heading.level) {
-      stack.pop();
-    }
-
-    if (stack.length > 0) {
-      // Nest under the parent wrapper
-      const parent = stack[stack.length - 1].wrapper;
-      parent.appendChild(wrapper);
-    } else {
-      // Top-level item
-      items.push(wrapper);
-    }
-
-    stack.push({ level: heading.level, wrapper });
-  });
-
-  return items;
-}
-
-/**
- * Find the table container where TOC should be inserted
- */
-function findTableContainer(template: TemplateStructure): HTMLElement | null {
-  const tableEl = document.querySelector<HTMLElement>('[heard-toc-element="table"]');
-  if (tableEl) {
-    return tableEl;
+  existing: ExistingElements
+): void {
+  const visibleHeadings = headings.filter(h => !h.omitted);
+  
+  if (visibleHeadings.length === 0) {
+    // Hide all wrappers if no headings
+    existing.wrapperElements.forEach(wrapper => {
+      wrapper.style.display = 'none';
+    });
+    return;
   }
 
-  // Default: use the first parent wrapper of the link template
-  return template.linkEl.parentElement;
+  // Populate existing wrappers in order, creating new ones if needed
+  visibleHeadings.forEach((heading, index) => {
+    // Get or create wrapper
+    let wrapper = getOrCreateWrapper(existing, heading, index);
+    
+    // Ensure wrapper is visible
+    wrapper.style.display = '';
+    
+    // Find or create link within wrapper
+    let linkEl = findLinkInWrapper(wrapper);
+    
+    if (!linkEl) {
+      // Clone link template and insert into wrapper
+      linkEl = existing.linkTemplate.cloneNode(true) as HTMLElement;
+      linkEl.removeAttribute('heard-toc-element');
+      
+      // Find innermost container in wrapper to insert link
+      let container = wrapper;
+      while (container.children.length > 0) {
+        const firstChild = container.children[0];
+        if (firstChild.tagName === 'DIV' || firstChild.tagName === 'SPAN') {
+          container = firstChild as HTMLElement;
+        } else {
+          break;
+        }
+      }
+      container.appendChild(linkEl);
+    }
+
+    // Populate the link with heading data
+    populateLinkElement(linkEl, heading);
+    
+    // If this is a newly created wrapper, append it to container
+    // (existing wrappers are already in the DOM, so we don't move them)
+    if (index >= existing.wrapperElements.length && wrapper.parentElement !== existing.container) {
+      existing.container.appendChild(wrapper);
+    }
+  });
+
+  // Hide unused existing wrappers (but don't remove them - preserve DOM structure)
+  existing.wrapperElements.forEach((wrapper, index) => {
+    if (index >= visibleHeadings.length) {
+      wrapper.style.display = 'none';
+    }
+  });
+
+  // Remove template link element if it exists and wasn't used
+  const templateLink = existing.container.querySelector('[heard-toc-element="link"]');
+  if (templateLink) {
+    const templateWrapper = templateLink.closest('.fs-toc_link-wrapper') || 
+                            templateLink.parentElement;
+    // Only remove if it's not one of the wrappers we're using
+    const isUsed = existing.wrapperElements.some(w => 
+      w === templateWrapper || w.contains(templateLink)
+    );
+    if (!isUsed) {
+      templateLink.remove();
+    }
+  }
 }
 
 /**
- * Build and insert the TOC into the DOM
+ * Build and populate the TOC using existing DOM elements
  */
 export function buildTOC(headings: HeadingEntry[]): boolean {
   if (headings.length === 0) {
@@ -189,32 +287,16 @@ export function buildTOC(headings: HeadingEntry[]): boolean {
     return false;
   }
 
-  const template = findTemplateStructure();
-  if (!template) {
+  const existing = findExistingElements();
+  if (!existing) {
     return false;
   }
 
-  // Build nested structure
-  const tocItems = buildNestedStructure(headings, template);
+  // Populate existing elements with heading data
+  populateExistingElements(headings, existing);
 
-  if (tocItems.length === 0) {
-    console.warn('[Heard TOC] No TOC items generated (all headings may be omitted)');
-    return false;
-  }
-
-  // Find container
-  const container = findTableContainer(template);
-  if (!container) {
-    console.warn('[Heard TOC] Could not find table container');
-    return false;
-  }
-
-  // Remove the original template elements
-  template.linkEl.remove();
-  
-  // Clear container and insert TOC items
-  container.innerHTML = '';
-  tocItems.forEach((item) => container.appendChild(item));
+  const visibleCount = headings.filter(h => !h.omitted).length;
+  console.log(`[Heard TOC] Populated ${visibleCount} TOC item(s) using existing DOM elements`);
 
   return true;
 }
