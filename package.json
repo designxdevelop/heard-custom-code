@@ -8,6 +8,7 @@
     "dev": "node build.js --watch",
     "build:toc": "node build.js toc",
     "build:faq-schema": "node build.js faq-schema",
+    "build:tax-deadlines-table": "node build.js tax-deadlines-table",
     "generate-faq-schema": "node scripts/generate-faq-schema.js"
   },
   "keywords": [

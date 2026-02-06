@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tax Deadlines Table - Dynamic Conversion Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background: #f9fafb;
+      padding: 2rem;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background: white;
+      padding: 3rem;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+      color: #1f2937;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: #6b7280;
+      margin-bottom: 3rem;
+    }
+
+    h2 {
+      font-size: 1.75rem;
+      margin: 2rem 0 1rem;
+      color: #2d4a2d;
+    }
+
+    .info-box {
+      background: #f0f9ff;
+      border-left: 4px solid #3b82f6;
+      padding: 1rem 1.5rem;
+      margin: 2rem 0;
+      border-radius: 4px;
+    }
+
+    .info-box strong {
+      color: #1e40af;
+    }
+
+    /* Original list styles (for comparison) */
+    .cms-list-tax-deadlines {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .cms-item-taxdeadline {
+      padding: 1rem;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #fafafa;
+    }
+
+    .text-weight-bold {
+      font-weight: 600;
+      color: #1f2937;
+      margin-bottom: 0.5rem;
+    }
+
+    .text-size-medium {
+      color: #4b5563;
+      font-size: 0.95rem;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin: 3rem 0;
+    }
+
+    .comparison-section {
+      padding: 1.5rem;
+      background: #f9fafb;
+      border-radius: 8px;
+    }
+
+    .comparison-section h3 {
+      margin-bottom: 1rem;
+      color: #374151;
+    }
+
+    @media (max-width: 768px) {
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+      
+      .container {
+        padding: 1.5rem;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="src/tax-deadlines-table/styles.css">
+</head>
+<body>
+  <div class="container">
+    <h1>Tax Deadlines - Dynamic Table Conversion</h1>
+    <p class="subtitle">Converting Webflow CMS list structure to semantic HTML table for better AEO</p>
+
+    <div class="info-box">
+      <strong>What's happening:</strong> The script automatically detects the CMS list structure and converts it into a properly formatted HTML table. The original list is hidden but remains in the DOM for Webflow CMS to function properly.
+    </div>
+
+    <h2>Tax Deadlines</h2>
+    <p>Here are important deadlines for the 2025 tax season you need to know about.</p>
+
+    <!-- This is the Webflow CMS structure that will be converted -->
+    <div role="list" class="cms-list-tax-deadlines w-dyn-items">
+      <div role="listitem" class="cms-item-taxdeadline w-dyn-item">
+        <div class="text-weight-bold">January 15, 2026</div>
+        <div class="text-size-medium">Deadline to make Q4 quarterly tax payment</div>
+      </div>
+      <div role="listitem" class="cms-item-taxdeadline w-dyn-item">
+        <div class="text-weight-bold">March 16, 2026</div>
+        <div class="text-size-medium">Deadline to file business tax return (Form 1120-S) or file an extension for S corps</div>
+      </div>
+      <div role="listitem" class="cms-item-taxdeadline w-dyn-item">
+        <div class="text-weight-bold">April 15, 2026</div>
+        <div class="text-size-medium">Deadline to file personal tax return (Form 1040) or file an extension</div>
+      </div>
+      <div role="listitem" class="cms-item-taxdeadline w-dyn-item">
+        <div class="text-weight-bold">September 15, 2026</div>
+        <div class="text-size-medium">Deadline to file your 2025 business tax return (Form 1120-S) if you filed an extension</div>
+      </div>
+      <div role="listitem" class="cms-item-taxdeadline w-dyn-item">
+        <div class="text-weight-bold">October 15, 2026</div>
+        <div class="text-size-medium">Deadline to file your 2025 personal tax return (Form 1040) if you filed an extension</div>
+      </div>
+    </div>
+
+    <div class="info-box" style="margin-top: 3rem; background: #f0fdf4; border-color: #22c55e;">
+      <strong>AEO Benefits:</strong> Tables provide better structured data for AI engines, making it easier to extract and present information in answer snippets. The semantic HTML with proper headers and ARIA labels improves accessibility and machine readability.
+    </div>
+
+    <h2>Why Tables are Better for AEO</h2>
+    <ul style="margin-left: 1.5rem; color: #4b5563; line-height: 1.8;">
+      <li><strong>Structured Data:</strong> Tables provide clear relationships between data points</li>
+      <li><strong>Machine Readable:</strong> AI engines can easily parse table headers and cells</li>
+      <li><strong>Semantic HTML:</strong> Proper use of &lt;thead&gt;, &lt;tbody&gt;, &lt;th&gt;, and &lt;td&gt; tags</li>
+      <li><strong>Accessibility:</strong> Screen readers and assistive technologies work better with tables</li>
+      <li><strong>Answer Snippets:</strong> Search engines and AI can extract table data for featured snippets</li>
+    </ul>
+  </div>
+
+  <!-- Load the conversion script -->
+  <script src="dist/heard-tax-deadlines-table.js"></script>
+</body>
+</html>

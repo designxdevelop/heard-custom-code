@@ -64,6 +64,37 @@ echo '<html>...</html>' | node scripts/generate-faq-schema.js
 npm run generate-faq-schema path/to/file.html
 ```
 
+### Tax Deadlines Table (`tax-deadlines-table`)
+
+Dynamically converts Webflow CMS list items into semantic HTML tables for better AEO (Answer Engine Optimization). Tables provide better structured data for AI engines, making it easier to extract and present information in answer snippets.
+
+**Usage:**
+
+1. Add the styles and script to your Webflow page:
+```html
+<link rel="stylesheet" href="https://cdn.example.com/heard-tax-deadlines-table.css">
+<script src="https://cdn.example.com/heard-tax-deadlines-table.js" defer></script>
+```
+
+2. Ensure your Webflow CMS collection list has these classes:
+```html
+<div role="list" class="cms-list-tax-deadlines w-dyn-items">
+  <div role="listitem" class="cms-item-taxdeadline w-dyn-item">
+    <div class="text-weight-bold">[Date]</div>
+    <div class="text-size-medium">[Description]</div>
+  </div>
+</div>
+```
+
+**Features:**
+- Automatic conversion on page load
+- Responsive design (desktop table, mobile cards)
+- Semantic HTML with proper ARIA labels
+- Original list preserved for CMS functionality
+- Better for AI answer extraction and featured snippets
+
+See [TAX_DEADLINES_TABLE.md](./TAX_DEADLINES_TABLE.md) for detailed documentation.
+
 ---
 
 *More features coming soon. Each feature is independently built and can be used standalone.*
@@ -80,6 +111,7 @@ npm run build
 # Build specific feature
 npm run build:toc
 npm run build:faq-schema
+npm run build:tax-deadlines-table
 
 # Watch mode for development
 npm run dev
@@ -91,14 +123,16 @@ This project is organized as a multi-feature repository where each feature is se
 
 ```
 src/
-  toc/          # Table of Contents feature
-  faq-schema/   # FAQ Schema Generator feature
-  [feature]/    # Additional features go here (each as a separate directory)
+  toc/                  # Table of Contents feature
+  faq-schema/           # FAQ Schema Generator feature
+  tax-deadlines-table/  # Tax Deadlines Table Converter feature
+  [feature]/            # Additional features go here (each as a separate directory)
 
 dist/
-  heard-toc.js         # Built output for toc feature
-  heard-faq-schema.js  # Built output for faq-schema feature
-  heard-[feature].js   # Built output for other features
+  heard-toc.js                  # Built output for toc feature
+  heard-faq-schema.js           # Built output for faq-schema feature
+  heard-tax-deadlines-table.js  # Built output for tax-deadlines-table feature
+  heard-[feature].js            # Built output for other features
 
 scripts/
   generate-faq-schema.js # Standalone utility for generating FAQ schema
