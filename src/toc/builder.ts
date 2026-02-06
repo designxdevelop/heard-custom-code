@@ -35,8 +35,6 @@ interface TOCTemplate {
   linkClasses: string[];
   /** Classes for the text div inside the anchor (e.g. "fs-toc_link-h2") - may be null if text is directly in the <a> */
   textDivBaseClass: string | null;
-  /** Whether there's an ix-trigger element to clone per wrapper */
-  ixTriggerTemplate: HTMLElement | null;
 }
 
 /**
@@ -127,13 +125,10 @@ function captureFromContainer(
     }
   }
 
-  // Check for ix-trigger
-  const ixTrigger = firstWrapper.querySelector<HTMLElement>('[fs-toc-element="ix-trigger"]') ||
-                    firstWrapper.querySelector<HTMLElement>('.fs-toc_h-trigger');
-  const ixTriggerTemplate = ixTrigger ? ixTrigger.cloneNode(true) as HTMLElement : null;
-
-  // Now clear the link-content container
-  linkContent.innerHTML = '';
+  // Clear only existing TOC wrapper items, preserving any hard-coded
+  // non-wrapper elements (e.g. divider/trigger below the final link).
+  const existingWrappers = linkContent.querySelectorAll(':scope > .fs-toc_link-wrapper');
+  existingWrappers.forEach((wrapper) => wrapper.remove());
 
   return {
     linkContent,
@@ -141,7 +136,6 @@ function captureFromContainer(
     wrapperBaseClasses,
     linkClasses,
     textDivBaseClass,
-    ixTriggerTemplate,
   };
 }
 
@@ -180,11 +174,6 @@ function createWrapperForHeading(
   }
 
   wrapper.appendChild(anchor);
-
-  // Add ix-trigger if template has one
-  if (template.ixTriggerTemplate) {
-    wrapper.appendChild(template.ixTriggerTemplate.cloneNode(true));
-  }
 
   return wrapper;
 }

@@ -10,6 +10,11 @@ interface ScrollSpyConfig {
   hideUrlHash: boolean;
 }
 
+interface ScrollToHeadingOptions {
+  behavior?: ScrollBehavior;
+  updateHash?: boolean;
+}
+
 /**
  * Parse CSS value to pixels (approximate)
  */
@@ -56,7 +61,7 @@ function detectStickyNavHeight(): number {
 
   // Strategy 1: Check <nav> and <header> tags directly
   const structuralEls = document.querySelectorAll<HTMLElement>('nav, header');
-  for (const el of structuralEls) {
+  structuralEls.forEach((el) => {
     const style = getComputedStyle(el);
     if (style.position === 'fixed' || style.position === 'sticky') {
       const rect = el.getBoundingClientRect();
@@ -64,27 +69,44 @@ function detectStickyNavHeight(): number {
         maxHeight = Math.max(maxHeight, rect.bottom);
       }
     }
-  }
+  });
 
   // Strategy 2: If nothing found, check body's direct children for fixed/sticky
   if (maxHeight === 0) {
-    for (const el of document.body.children) {
-      if (!(el instanceof HTMLElement)) continue;
-      const style = getComputedStyle(el);
-      if (style.position === 'fixed' || style.position === 'sticky') {
-        const rect = el.getBoundingClientRect();
-        if (rect.top < 10 && rect.height > 0) {
-          maxHeight = Math.max(maxHeight, rect.bottom);
+    Array.from(document.body.children).forEach((el) => {
+      if (el instanceof HTMLElement) {
+        const style = getComputedStyle(el);
+        if (style.position === 'fixed' || style.position === 'sticky') {
+          const rect = el.getBoundingClientRect();
+          if (rect.top < 10 && rect.height > 0) {
+            maxHeight = Math.max(maxHeight, rect.bottom);
+          }
         }
       }
-    }
+    });
   }
+
+  // Strategy 3: Webflow nav wrappers are sometimes transformed/animated and may
+  // not report position:fixed in early lifecycle. Measure known top nav shells.
+  const topNavCandidates = document.querySelectorAll<HTMLElement>(
+    '.nav-w-banner, .nav-section, [data-wf--global-navigation--variant], nav[role="banner"], header[role="banner"]'
+  );
+  topNavCandidates.forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    const intersectsTopViewport = rect.top <= 8 && rect.bottom > 0;
+    if (intersectsTopViewport && rect.height > 0) {
+      maxHeight = Math.max(maxHeight, rect.bottom);
+    }
+  });
 
   return maxHeight;
 }
 
-/** Cached resolved offset top in pixels. -1 means not yet computed. */
-let _cachedOffsetTopPx = -1;
+/**
+ * Highest auto-detected top offset seen so far.
+ * Keeping the max avoids regressions when nav height changes during load.
+ */
+let _detectedOffsetTopPx = 0;
 
 /**
  * Get the effective top offset in pixels, resolving it lazily.
@@ -92,21 +114,20 @@ let _cachedOffsetTopPx = -1;
  * has time to apply position:fixed to nav elements.
  */
 function getEffectiveOffsetTop(config: ScrollSpyConfig): number {
-  if (_cachedOffsetTopPx >= 0) return _cachedOffsetTopPx;
-
   if (config.offsetTop) {
-    _cachedOffsetTopPx = parseCSSValue(config.offsetTop);
-  } else {
-    const navHeight = detectStickyNavHeight();
-    if (navHeight > 0) {
-      _cachedOffsetTopPx = navHeight + 20; // 20px breathing room
-      console.log(`[Heard TOC] Auto-detected sticky nav offset: ${_cachedOffsetTopPx}px`);
-    } else {
-      _cachedOffsetTopPx = 0;
+    return parseCSSValue(config.offsetTop);
+  }
+
+  const navHeight = detectStickyNavHeight();
+  if (navHeight > 0) {
+    const detectedWithBreathingRoom = navHeight + 20; // 20px breathing room
+    if (detectedWithBreathingRoom > _detectedOffsetTopPx) {
+      _detectedOffsetTopPx = detectedWithBreathingRoom;
+      console.log(`[Heard TOC] Auto-detected sticky nav offset: ${_detectedOffsetTopPx}px`);
     }
   }
 
-  return _cachedOffsetTopPx;
+  return _detectedOffsetTopPx;
 }
 
 /**
@@ -143,7 +164,8 @@ function getConfig(): ScrollSpyConfig {
       '[heard-toc-element="contents"], [fs-toc-element="contents"]'
     );
 
-    for (const contentsEl of contentsElements) {
+    for (let i = 0; i < contentsElements.length; i++) {
+      const contentsEl = contentsElements[i];
       // Check for both heard-toc- and fs-toc- prefixes (fs-toc takes precedence)
       const elOffsetTop = contentsEl.getAttribute('fs-toc-offsettop') ||
                           contentsEl.getAttribute('heard-toc-offsettop');
@@ -278,28 +300,73 @@ function updateActiveLink(activeHeadingId: string | null, headings: HeadingEntry
  */
 function scrollToHeading(
   headingId: string,
-  config: ScrollSpyConfig
+  config: ScrollSpyConfig,
+  options: ScrollToHeadingOptions = {},
 ): void {
   const heading = document.getElementById(headingId);
   if (!heading) return;
 
+  const behavior = options.behavior ?? 'smooth';
+  const shouldUpdateHash = options.updateHash ?? true;
   const offsetTop = getEffectiveOffsetTop(config);
-
   const headingRect = heading.getBoundingClientRect();
-  const scrollPosition = window.scrollY + headingRect.top - offsetTop;
+  const targetTop = Math.max(0, window.scrollY + headingRect.top - offsetTop - 8);
 
   window.scrollTo({
-    top: Math.max(0, scrollPosition),
-    behavior: 'smooth',
+    top: targetTop,
+    behavior,
   });
 
   // Update URL hash if not hidden
-  if (!config.hideUrlHash) {
+  if (shouldUpdateHash && !config.hideUrlHash) {
     // Use replaceState to avoid adding to history
     const url = new URL(window.location.href);
     url.hash = headingId;
     window.history.replaceState(null, '', url.toString());
   }
+}
+
+/**
+ * Apply scroll margin to all heading targets so both deep links and JS
+ * scrolling land below the sticky nav.
+ */
+function applyHeadingScrollMargin(headings: HeadingEntry[], config: ScrollSpyConfig): void {
+  const offsetTop = getEffectiveOffsetTop(config);
+  const scrollMarginTop = `${Math.max(0, offsetTop + 8)}px`;
+
+  headings.forEach((heading) => {
+    heading.el.style.scrollMarginTop = scrollMarginTop;
+  });
+}
+
+/**
+ * Ensure deep-linked URLs (page load with #hash) respect offset.
+ * Browser native anchor jumps ignore JS offsets, so we re-apply position.
+ */
+function setupInitialHashOffset(config: ScrollSpyConfig): void {
+  const applyHashOffset = () => {
+    const rawHash = window.location.hash;
+    if (!rawHash || rawHash.length < 2) return;
+
+    const headingId = decodeURIComponent(rawHash.slice(1));
+    if (!headingId) return;
+
+    const heading = document.getElementById(headingId);
+    if (!heading) return;
+
+    scrollToHeading(headingId, config, { behavior: 'auto', updateHash: false });
+  };
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      applyHashOffset();
+      window.setTimeout(applyHashOffset, 120);
+    });
+  });
+
+  window.addEventListener('hashchange', () => {
+    applyHashOffset();
+  });
 }
 
 /**
@@ -316,8 +383,12 @@ function setupLinkClickHandlers(headings: HeadingEntry[], config: ScrollSpyConfi
       const href = isAnchor ? (link as HTMLAnchorElement).href : null;
       
       if (href && href.includes('#')) {
-        // Let default anchor behavior handle it, but we'll still scroll
+        // Prevent native hash jump and third-party smooth-scroll handlers.
         e.preventDefault();
+        e.stopPropagation();
+        if ('stopImmediatePropagation' in e) {
+          e.stopImmediatePropagation();
+        }
       }
 
       scrollToHeading(heading.id, config);
@@ -340,13 +411,32 @@ export function initScrollSpy(headings: HeadingEntry[]): void {
   const offsetBottom = config.offsetBottom ? parseCSSValue(config.offsetBottom) : 0;
 
   // Setup click handlers immediately (they resolve offset lazily on click)
+  applyHeadingScrollMargin(headings, config);
   setupLinkClickHandlers(headings, config);
+  setupInitialHashOffset(config);
 
-  // Defer the IntersectionObserver setup by one rAF so Webflow JS can
-  // finish applying position:fixed to nav elements
-  requestAnimationFrame(() => {
-    _setupScrollSpy(headings, config, offsetBottom);
-  });
+  const setupObserver = () => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        _setupScrollSpy(headings, config, offsetBottom);
+      });
+    });
+  };
+
+  if (document.readyState === 'complete') {
+    setupObserver();
+  } else {
+    window.addEventListener('load', setupObserver, { once: true });
+  }
+
+  // Keep margin in sync with responsive nav height changes
+  window.addEventListener('resize', () => {
+    applyHeadingScrollMargin(headings, config);
+  }, { passive: true });
+
+  window.addEventListener('load', () => {
+    applyHeadingScrollMargin(headings, config);
+  }, { once: true });
 }
 
 function _setupScrollSpy(
@@ -354,7 +444,8 @@ function _setupScrollSpy(
   config: ScrollSpyConfig,
   offsetBottom: number,
 ): void {
-  const offsetTop = getEffectiveOffsetTop(config);
+  const getOffsetTop = (): number => getEffectiveOffsetTop(config);
+  const offsetTop = getOffsetTop();
   
   const rootMarginTop = offsetTop > 0 ? `-${offsetTop}px` : '0px';
   const rootMarginBottom = offsetBottom > 0 ? `-${offsetBottom}px` : '0px';
@@ -388,7 +479,7 @@ function _setupScrollSpy(
       } else {
         // Check if we should activate based on scroll position
         // Find the heading closest to the top of the viewport that's in context
-        const viewportTop = window.scrollY + offsetTop;
+        const viewportTop = window.scrollY + getOffsetTop();
         let closestHeading: HeadingEntry | null = null;
         let closestDistance = Infinity;
 
@@ -429,7 +520,7 @@ function _setupScrollSpy(
 
   // Initial active state check
   const checkInitialActive = () => {
-    const viewportTop = window.scrollY + offsetTop;
+    const viewportTop = window.scrollY + getOffsetTop();
     let activeId: string | null = null;
 
     for (const heading of headings) {
