@@ -70,9 +70,8 @@ Dynamically converts Webflow CMS list items into semantic HTML tables for better
 
 **Usage:**
 
-1. Add the styles and script to your Webflow page:
+1. Add the script to your Webflow page (all styles are included):
 ```html
-<link rel="stylesheet" href="https://cdn.example.com/heard-tax-deadlines-table.css">
 <script src="https://cdn.example.com/heard-tax-deadlines-table.js" defer></script>
 ```
 

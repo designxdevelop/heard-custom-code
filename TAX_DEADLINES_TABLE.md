@@ -29,12 +29,11 @@ The script automatically:
 In your Webflow project's custom code section (before `</body>`):
 
 ```html
-<!-- Tax Deadlines Table Styles -->
-<link rel="stylesheet" href="https://your-cdn.com/heard-tax-deadlines-table.css">
-
-<!-- Tax Deadlines Table Converter -->
-<script src="https://your-cdn.com/heard-tax-deadlines-table.js"></script>
+<!-- Tax Deadlines Table Converter (includes all styles) -->
+<script src="https://your-cdn.com/heard-tax-deadlines-table.js" defer></script>
 ```
+
+**Note:** All styles are injected automatically by the JavaScript - no separate CSS file needed!
 
 ### 2. Webflow Structure Requirements
 
@@ -85,26 +84,26 @@ The script automatically runs on page load. No additional JavaScript or configur
 
 ### Styling
 
-Edit `src/tax-deadlines-table/styles.css` to customize:
+All styles are injected by JavaScript. Edit the `injectStyles()` method in `src/tax-deadlines-table/index.ts` to customize:
 
-```css
-.tax-deadlines-table {
-  /* Table container styles */
-}
-
-.tax-deadlines-table thead {
-  background: #2d4a2d; /* Header background color */
-  color: #ffffff;      /* Header text color */
-}
-
-.tax-deadline-date {
-  /* Date column styles */
-}
-
-.tax-deadline-description {
-  /* Description column styles */
+```typescript
+private injectStyles(): void {
+  const style = document.createElement('style');
+  style.textContent = `
+    .tax-deadlines-table {
+      /* Table container styles */
+    }
+    .tax-deadlines-table thead {
+      background: #2d4a2d; /* Header background color */
+      color: #ffffff;      /* Header text color */
+    }
+    /* Add more styles here */
+  `;
+  document.head.appendChild(style);
 }
 ```
+
+After making changes, rebuild with `npm run build:tax-deadlines-table`.
 
 ### Table Headers
 
