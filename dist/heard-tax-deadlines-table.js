@@ -1,5 +1,25 @@
 /* Heard Custom Code - tax-deadlines-table */
-"use strict";(()=>{var s=class{constructor(){this.sourceList=null;this.targetContainer=null;this.stylesInjected=!1;this.injectStyles(),this.init()}injectStyles(){if(this.stylesInjected)return;if(document.getElementById("heard-tax-deadlines-table-styles")){this.stylesInjected=!0;return}let t=document.createElement("style");t.id="heard-tax-deadlines-table-styles",t.textContent=`
+"use strict";
+(() => {
+  // src/tax-deadlines-table/index.ts
+  var TaxDeadlinesTableConverter = class {
+    constructor() {
+      this.sourceList = null;
+      this.targetContainer = null;
+      this.stylesInjected = false;
+      this.injectStyles();
+      this.init();
+    }
+    injectStyles() {
+      if (this.stylesInjected)
+        return;
+      if (document.getElementById("heard-tax-deadlines-table-styles")) {
+        this.stylesInjected = true;
+        return;
+      }
+      const style = document.createElement("style");
+      style.id = "heard-tax-deadlines-table-styles";
+      style.textContent = `
 .tax-deadlines-table {
   width: 100%;
   border-collapse: collapse;
@@ -204,4 +224,94 @@
     print-color-adjust: exact;
   }
 }
-`,document.head.appendChild(t),this.stylesInjected=!0}init(){document.readyState==="loading"?document.addEventListener("DOMContentLoaded",()=>this.convert()):this.convert()}convert(){if(this.sourceList=document.querySelector(".cms-list-tax-deadlines"),!this.sourceList){console.warn("Tax deadlines list not found");return}let t=this.extractDeadlines();if(t.length===0){console.warn("No deadline items found");return}let e=this.createTable(t);this.replaceListWithTable(e)}extractDeadlines(){if(!this.sourceList)return[];let t=this.sourceList.querySelectorAll(".cms-item-taxdeadline"),e=[];return t.forEach(n=>{let a=n.querySelector(".text-weight-bold"),d=n.querySelector(".text-size-medium");a&&d&&e.push({date:a.textContent?.trim()||"",description:d.textContent?.trim()||""})}),e}createTable(t){let e=document.createElement("table");e.className="tax-deadlines-table",e.setAttribute("role","table"),e.setAttribute("aria-label","Tax deadlines for therapists");let n=document.createElement("thead"),a=document.createElement("tr"),d=document.createElement("th");d.textContent="Date",d.setAttribute("scope","col");let r=document.createElement("th");r.textContent="Deadline",r.setAttribute("scope","col"),a.appendChild(d),a.appendChild(r),n.appendChild(a),e.appendChild(n);let b=document.createElement("tbody");return t.forEach(c=>{let i=document.createElement("tr"),o=document.createElement("td");o.className="tax-deadline-date",o.textContent=c.date;let l=document.createElement("td");l.className="tax-deadline-description",l.textContent=c.description,i.appendChild(o),i.appendChild(l),b.appendChild(i)}),e.appendChild(b),e}replaceListWithTable(t){if(!this.sourceList)return;let e=this.sourceList.parentElement;if(!e){console.warn("Parent container not found");return}e.insertBefore(t,this.sourceList),this.sourceList.style.display="none",this.sourceList.setAttribute("data-converted-to-table","true")}};new s;})();
+`;
+      document.head.appendChild(style);
+      this.stylesInjected = true;
+    }
+    init() {
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", () => this.convert());
+      } else {
+        this.convert();
+      }
+    }
+    convert() {
+      this.sourceList = document.querySelector(".cms-list-tax-deadlines");
+      if (!this.sourceList) {
+        console.warn("Tax deadlines list not found");
+        return;
+      }
+      const deadlines = this.extractDeadlines();
+      if (deadlines.length === 0) {
+        console.warn("No deadline items found");
+        return;
+      }
+      const table = this.createTable(deadlines);
+      this.replaceListWithTable(table);
+    }
+    extractDeadlines() {
+      if (!this.sourceList)
+        return [];
+      const items = this.sourceList.querySelectorAll(".cms-item-taxdeadline");
+      const deadlines = [];
+      items.forEach((item) => {
+        const dateElement = item.querySelector(".text-weight-bold");
+        const descriptionElement = item.querySelector(".text-size-medium");
+        if (dateElement && descriptionElement) {
+          deadlines.push({
+            date: dateElement.textContent?.trim() || "",
+            description: descriptionElement.textContent?.trim() || ""
+          });
+        }
+      });
+      return deadlines;
+    }
+    createTable(deadlines) {
+      const table = document.createElement("table");
+      table.className = "tax-deadlines-table";
+      table.setAttribute("role", "table");
+      table.setAttribute("aria-label", "Tax deadlines for therapists");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      const dateHeader = document.createElement("th");
+      dateHeader.textContent = "Date";
+      dateHeader.setAttribute("scope", "col");
+      const descriptionHeader = document.createElement("th");
+      descriptionHeader.textContent = "Deadline";
+      descriptionHeader.setAttribute("scope", "col");
+      headerRow.appendChild(dateHeader);
+      headerRow.appendChild(descriptionHeader);
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+      const tbody = document.createElement("tbody");
+      deadlines.forEach((deadline) => {
+        const row = document.createElement("tr");
+        const dateCell = document.createElement("td");
+        dateCell.className = "tax-deadline-date";
+        dateCell.textContent = deadline.date;
+        const descriptionCell = document.createElement("td");
+        descriptionCell.className = "tax-deadline-description";
+        descriptionCell.textContent = deadline.description;
+        row.appendChild(dateCell);
+        row.appendChild(descriptionCell);
+        tbody.appendChild(row);
+      });
+      table.appendChild(tbody);
+      return table;
+    }
+    replaceListWithTable(table) {
+      if (!this.sourceList)
+        return;
+      const parent = this.sourceList.parentElement;
+      if (!parent) {
+        console.warn("Parent container not found");
+        return;
+      }
+      parent.insertBefore(table, this.sourceList);
+      this.sourceList.style.display = "none";
+      this.sourceList.setAttribute("data-converted-to-table", "true");
+    }
+  };
+  new TaxDeadlinesTableConverter();
+})();
+//# sourceMappingURL=heard-tax-deadlines-table.js.map

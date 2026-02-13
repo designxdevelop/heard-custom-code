@@ -86,6 +86,9 @@ export function discoverHeadings(): HeadingEntry[] {
       const level = getHeadingLevel(headingEl);
       if (level === 0) return; // Skip invalid headings
 
+      // Skip headings inside AEO/key takeaways blocks
+      if (headingEl.closest('.aeo-keytakeaways')) return;
+
       // Get text content and parse directives
       const rawText = headingEl.textContent || '';
       const { cleanText, omitted, overrideLevel } = parseDirectives(rawText);
