@@ -18,7 +18,12 @@ const features = allItems
   .filter(item => {
     const itemPath = join(srcDir, item);
     try {
-      return statSync(itemPath).isDirectory();
+      // Only build feature dirs that have an index.ts entrypoint
+      // (skips static folders like embeds/)
+      return (
+        statSync(itemPath).isDirectory() &&
+        statSync(join(itemPath, 'index.ts')).isFile()
+      );
     } catch (e) {
       return false;
     }

@@ -119,14 +119,14 @@ descriptionHeader.textContent = 'Deadline'; // Change this
 
 ## Testing
 
-Open `test-tax-deadlines.html` in a browser to see the conversion in action.
+Open `src/tax-deadlines-table/test.html` in a browser to see the conversion in action.
 
 ```bash
 # Build the script
 npm run build
 
 # Open test file
-open test-tax-deadlines.html
+open src/tax-deadlines-table/test.html
 ```
 
 ## Development

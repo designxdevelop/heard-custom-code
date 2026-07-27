@@ -122,10 +122,11 @@ This project is organized as a multi-feature repository where each feature is se
 
 ```
 src/
-  toc/                  # Table of Contents feature
+  toc/                  # Table of Contents feature (+ test.html)
   faq-schema/           # FAQ Schema Generator feature
-  tax-deadlines-table/  # Tax Deadlines Table Converter feature
-  [feature]/            # Additional features go here (each as a separate directory)
+  tax-deadlines-table/  # Tax Deadlines Table Converter feature (+ test.html)
+  embeds/               # Static Webflow HTML embeds (not built by esbuild)
+  [feature]/            # JS features: directory with index.ts
 
 dist/
   heard-toc.js                  # Built output for toc feature
@@ -138,7 +139,9 @@ scripts/
 ```
 
 **Key Points:**
-- Each feature lives in its own directory under `src/`
-- Each feature builds to its own standalone JavaScript file in `dist/`
+- Each JS feature lives in its own directory under `src/` with an `index.ts` entrypoint
+- Static Webflow HTML embeds live in `src/embeds/`
+- Feature test pages live next to their feature (e.g. `src/toc/test.html`)
+- Each JS feature builds to its own standalone file in `dist/`
 - Features are independent and can be used separately
-- New features can be added by creating a new directory in `src/` and updating the build configuration
+- New JS features need a `src/[feature]/index.ts`; dirs without `index.ts` are skipped by the build
